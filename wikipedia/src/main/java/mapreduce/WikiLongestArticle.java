@@ -8,7 +8,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
@@ -57,8 +56,8 @@ public class WikiLongestArticle {
 
 	}
 
-	public static class DocumentLengthSumReducer extends
-			Reducer<IntWritable, ArrayWritable, Text, LongWritable> {
+	public static class LongestArticleReducer extends
+			Reducer<IntWritable, ArrayWritable, Text, IntWritable> {
 
 		// Maximal-length article properties
 		int maxLength = 0;
@@ -77,7 +76,7 @@ public class WikiLongestArticle {
 					maxLength = length;
 				}
 			}
-			
+			context.write(new Text(titleLongest), new IntWritable(maxLength));
 		}
 	}
 
@@ -95,15 +94,15 @@ public class WikiLongestArticle {
 		FileInputFormat.addInputPath(job, new Path(args[0]));
 		job.setInputFormatClass(XmlInputFormat.class);
 		job.setMapperClass(LongestArticle.class);
-		job.setMapOutputKeyClass(Text.class);
-		job.setMapOutputValueClass(IntWritable.class);
+		job.setMapOutputKeyClass(IntWritable.class);
+		job.setMapOutputValueClass(ArrayWritable.class);
 
 		// Output / Reducer
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		job.setOutputFormatClass(TextOutputFormat.class);
 		job.setOutputKeyClass(Text.class);
-		job.setOutputValueClass(LongWritable.class);
-		job.setReducerClass(DocumentLengthSumReducer.class);
+		job.setOutputValueClass(IntWritable.class);
+		job.setReducerClass(LongestArticleReducer.class);
 		job.setNumReduceTasks(4);
 
 		System.exit(job.waitForCompletion(true) ? 0 : 1);
