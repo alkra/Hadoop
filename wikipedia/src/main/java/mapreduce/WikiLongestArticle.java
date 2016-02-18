@@ -27,6 +27,8 @@ public class WikiLongestArticle {
 		private static final Pattern TITLE = Pattern
 				.compile("<title>(.*)<\\/title>");
 		
+		final IntWritable zero = new IntWritable(0);
+		
 		public void map(Object key, Text value, Context context)
 				throws IOException, InterruptedException {
 			// Get and parse XML data
@@ -40,7 +42,7 @@ public class WikiLongestArticle {
 			result[0] = title;
 			result[1] = String.valueOf(document.length());
 			
-			context.write(new IntWritable(0), new ArrayWritable(result));
+			context.write(zero, new ArrayWritable(result));
 		}
 
 		private static String getDocument(String xml) {
