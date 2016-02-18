@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -18,32 +19,29 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.mahout.text.wikipedia.XmlInputFormat;
 
 public class WikiLongestArticle {
-
-	public static class FirstTitleLetterMapper extends
-			Mapper<Object, Text, Text, IntWritable> {
+	
+	public static class LongestArticle extends
+			Mapper<Object, Text, IntWritable, ArrayWritable> {
 
 		private static final String START_DOC = "<text xml:space=\"preserve\">";
 		private static final String END_DOC = "</text>";
 		private static final Pattern TITLE = Pattern
 				.compile("<title>(.*)<\\/title>");
-
-		int maxLength = 0;
-		Text titleLongest = new Text();
 		
 		public void map(Object key, Text value, Context context)
 				throws IOException, InterruptedException {
-
+			// Get and parse XML data
 			String articleXML = value.toString();
 
 			String title = getTitle(articleXML);
 			String document = getDocument(articleXML);
 
-			if (document.length() > maxLength){
-				titleLongest.set(title);
-				maxLength = document.length();
-			}
-
-			context.write(titleLongest, new IntWritable(maxLength));
+			// Send to reducer an array [article_title, article_length]
+			String[] result = new String[2];
+			result[0] = title;
+			result[1] = String.valueOf(document.length());
+			
+			context.write(new IntWritable(0), new ArrayWritable(result));
 		}
 
 		private static String getDocument(String xml) {
@@ -60,10 +58,25 @@ public class WikiLongestArticle {
 	}
 
 	public static class DocumentLengthSumReducer extends
-			Reducer<Text, IntWritable, Text, LongWritable> {
+			Reducer<IntWritable, ArrayWritable, Text, LongWritable> {
 
-		public void reduce(Text key, Iterable<IntWritable> values,
+		// Maximal-length article properties
+		int maxLength = 0;
+		String titleLongest = new String();
+		
+		public void reduce(Text key, Iterable<ArrayWritable> values,
 				Context context) throws IOException, InterruptedException {
+			
+			for(ArrayWritable articleArray : values) {
+				String[] article = articleArray.toStrings();
+				int length = Integer.parseInt(article[1]);
+				
+				// Update maximum
+				if (length > maxLength) {
+					titleLongest = article[0];
+					maxLength = length;
+				}
+			}
 			
 		}
 	}
@@ -81,7 +94,7 @@ public class WikiLongestArticle {
 		// Input / Mapper
 		FileInputFormat.addInputPath(job, new Path(args[0]));
 		job.setInputFormatClass(XmlInputFormat.class);
-		job.setMapperClass(FirstTitleLetterMapper.class);
+		job.setMapperClass(LongestArticle.class);
 		job.setMapOutputKeyClass(Text.class);
 		job.setMapOutputValueClass(IntWritable.class);
 
