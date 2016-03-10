@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.ArrayWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -19,8 +20,14 @@ import org.apache.mahout.text.wikipedia.XmlInputFormat;
 
 public class WikiLongestArticle {
 	
+	public static class TextArrayWritable extends ArrayWritable {
+		public TextArrayWritable () {
+			super(Text.class);
+		}
+	}
+	
 	public static class LongestArticle extends
-			Mapper<Object, Text, IntWritable, ArrayWritable> {
+			Mapper<Object, Text, IntWritable, TextArrayWritable> {
 
 		private static final String START_DOC = "<text xml:space=\"preserve\">";
 		private static final String END_DOC = "</text>";
@@ -28,6 +35,8 @@ public class WikiLongestArticle {
 				.compile("<title>(.*)<\\/title>");
 		
 		final IntWritable zero = new IntWritable(0);
+		final TextArrayWritable resultArray = new TextArrayWritable();			
+		final Text[] result = new Text[2];
 		
 		public void map(Object key, Text value, Context context)
 				throws IOException, InterruptedException {
@@ -38,11 +47,11 @@ public class WikiLongestArticle {
 			String document = getDocument(articleXML);
 
 			// Send to reducer an array [article_title, article_length]
-			String[] result = new String[2];
-			result[0] = title;
-			result[1] = String.valueOf(document.length());
-			
-			context.write(zero, new ArrayWritable(result));
+			result[0] = new Text(title);
+			result[1] = new Text(String.valueOf(document.length()));
+
+			resultArray.set(result);
+			context.write(zero, resultArray);
 		}
 
 		private static String getDocument(String xml) {
@@ -59,26 +68,28 @@ public class WikiLongestArticle {
 	}
 
 	public static class LongestArticleReducer extends
-			Reducer<IntWritable, ArrayWritable, Text, IntWritable> {
+			Reducer<IntWritable, TextArrayWritable, Text, IntWritable> {
 
 		// Maximal-length article properties
 		int maxLength = 0;
-		String titleLongest = new String();
+		Text titleLongest = new Text();
 		
-		public void reduce(Text key, Iterable<ArrayWritable> values,
+		public void reduce(IntWritable key, Iterable<TextArrayWritable> values,
 				Context context) throws IOException, InterruptedException {
 			
-			for(ArrayWritable articleArray : values) {
-				String[] article = articleArray.toStrings();
-				int length = Integer.parseInt(article[1]);
+			for(TextArrayWritable articleArray : values) {
+				Writable[] article = articleArray.get();
+				
+				Text lengthText = (Text) article[1];
+				int length = Integer.parseInt(lengthText.toString());
 				
 				// Update maximum
 				if (length > maxLength) {
-					titleLongest = article[0];
+					titleLongest = (Text) article[0];
 					maxLength = length;
 				}
 			}
-			context.write(new Text(titleLongest), new IntWritable(maxLength));
+			context.write(titleLongest, new IntWritable(maxLength));
 		}
 	}
 
@@ -97,7 +108,7 @@ public class WikiLongestArticle {
 		job.setInputFormatClass(XmlInputFormat.class);
 		job.setMapperClass(LongestArticle.class);
 		job.setMapOutputKeyClass(IntWritable.class);
-		job.setMapOutputValueClass(ArrayWritable.class);
+		job.setMapOutputValueClass(TextArrayWritable.class);
 
 		// Output / Reducer
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
