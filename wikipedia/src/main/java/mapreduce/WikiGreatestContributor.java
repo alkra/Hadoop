@@ -24,9 +24,9 @@ public class WikiGreatestContributor {
 		private static final String START_PAGE = "<page>";
 		private static final String END_PAGE = "</page>";
 		private static final Pattern USERNAME = Pattern
-				.compile("<contributor>[^<]*<username>(.*)<\\/username>[^<]*<\\/contributor>");
+				.compile("<contributor><username>(.*)<\\/username><\\/contributor>");
 		private static final Pattern IP = Pattern
-				.compile("<contributor>[^<]*<ip>(.*)<\\/ip>[^<]*<\\/contributor>");
+				.compile("<contributor><ip>(.*)<\\/ip><\\/contributor>");
 		
 		final IntWritable one = new IntWritable(1);
 		final Text contributor = new Text();
@@ -36,7 +36,7 @@ public class WikiGreatestContributor {
 			// Get and parse XML data
 			String articleXML = value.toString();
 
-			String contributorId = getContributor(getPage(articleXML));
+			String contributorId = getContributor(articleXML);
 
 			contributor.set(contributorId);
 			context.write(contributor, one);
@@ -55,12 +55,12 @@ public class WikiGreatestContributor {
 			if(userNameMatcher.find()) {
 				result = userNameMatcher.group(1);
 			}
-			else {
+			/*else {
 				Matcher ipMatcher = IP.matcher(xml);
 				if(ipMatcher.find()) {
 					result = ipMatcher.group(1);
 				}
-			}
+			}*/
 				
 			return result;
 		}

@@ -33,48 +33,25 @@ public class WikiWordCount {
 				.compile("[a-zA-Z0-9_-");
 
 		final IntWritable one = new IntWritable(1);
-		final Text word = new Text();
-		
-		Map<Text, IntWritable> words = null;
 
 		public void map(Object key, Text value, Context context)
 				throws IOException, InterruptedException {
 			// Get and parse XML data
 			String articleXML = value.toString();
-
-			// Initialize map
-			words = new TreeMap<Text, IntWritable>();
 			
-			// Fill map
-			wordCount(getTitle(articleXML));
-			wordCount(getDocument(articleXML));
-
-			// Dump map
-			writeMap(context);
-			
-			words = null;
+			// Count words in title and article
+			wordCount(getTitle(articleXML), context);
+			wordCount(getDocument(articleXML), context);
 		}
 		
 		/* Hypothesis: the 100 most common words are English words with Latin characters */
-		private void wordCount(String content) {
+		private void wordCount(String content, Context context) throws IOException, InterruptedException {
 			Matcher wordMatcher = WORD.matcher(content);
 		
 			while(wordMatcher.find()) {
 				Text wordMatched = new Text(wordMatcher.group());
-				if(words.containsKey(wordMatched)) {
-					IntWritable value = words.get(wordMatched);
-					IntWritable newValue = new IntWritable(value.get() +1);
-					words.put(wordMatched, newValue);
-				} 
-				else {
-					words.put(wordMatched, new IntWritable(1));
-				}
-			}
-		}
-		
-		private void writeMap(Context context) throws IOException, InterruptedException {
-			for(Map.Entry<Text, IntWritable> entry : words.entrySet()) {
-				context.write(entry.getKey(), entry.getValue());
+	
+				context.write(wordMatched, one);
 			}
 		}
 
@@ -94,6 +71,8 @@ public class WikiWordCount {
 	public static class WordCountReducer extends
 	Reducer<Text, IntWritable, Text, IntWritable> {
 
+		TreeMap<Text, Integer> words = new TreeMap<>();
+		
 		public void reduce(Text key, Iterable<IntWritable> values,
 				Context context) throws IOException, InterruptedException {
 
@@ -124,6 +103,8 @@ public class WikiWordCount {
 		job.setMapOutputKeyClass(Text.class);
 		job.setMapOutputValueClass(IntWritable.class);
 
+		job.setCombinerClass(WordCountReducer.class);
+		
 		// Output / Reducer
 		FileOutputFormat.setOutputPath(job, new Path(args[1]));
 		job.setOutputFormatClass(TextOutputFormat.class);
