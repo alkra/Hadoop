@@ -64,7 +64,7 @@ public class WikiHadoop {
 		
 		final IntWritable zero = new IntWritable(0);
 		
-		public void reduce(Text key, Iterable<IntWritable> values,
+		public void reduce(IntWritable key, Iterable<IntWritable> values,
 				Context context) throws IOException, InterruptedException {
 			
 			int count = 0;
